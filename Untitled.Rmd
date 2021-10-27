@@ -274,7 +274,8 @@ rest_inspec %>%
   pivot_wider(names_from = grade, values_from = n)
 ```
 
-For more information:
+
+For more codes:
 https://www.p8105.com/strings_and_factors.html
 
 
