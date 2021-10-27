@@ -1,0 +1,322 @@
+---
+title: "Read_data_from_the_web"
+author: "ke"
+date: "10/25/2021"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(httr)
+```
+
+# First class
+
+## Example to load data 
+```{r}
+url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+drug_use_html = read_html(url)
+
+drug_use_df = 
+  drug_use_html %>% 
+  html_table() %>% #extract all tables in html
+  first() %>%  #show the first table
+  slice(-1) # remove the first line (note: ...)
+```
+
+## Star wars
+
+Get some star wars data...
+```{r}
+sw_url = "https://www.imdb.com/list/ls070150896/"
+
+sw_html = 
+  read_html(sw_url)
+
+# extract star wars titles:
+sw_titles = 
+  sw_html %>% 
+  html_elements(".lister-item-header a") %>%  # use Gadget tools to grab things you choose, but they are still html code, so...
+  html_text() # here we convert html code into text
+
+
+# extract star wars revenue:
+sw_revenue = 
+  sw_html %>% 
+  html_elements(".text-small:nth-child(7) span:nth-child(5)") %>% 
+  html_text()
+
+sw_df = 
+  tibble(
+    title = sw_titles,
+    vevenue = sw_revenue
+  ) # combine data above into a table
+```
+
+## Using an API
+
+Get some data from an API about water.
+```{r}
+water_df = 
+  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.csv") %>% # code for getting API url, **when download API, choose csv button
+  content("parsed") # import this as a CSV and parse it
+```
+
+Let's see what JSON looks like...
+```{r}
+water_df = 
+  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.json") %>% # here choose JSON
+  content("text") %>%
+  jsonlite::fromJSON() %>%
+  as_tibble()
+```
+
+By default, the CDC API limits data to the first 1000 rows. Here I’ve increased that by changing an element of the API query, using "$limit".
+```{r}
+brfss_smart2010 = 
+  GET("https://chronicdata.cdc.gov/resource/acme-vg9e.csv",
+      query = list("$limit" = 5000)) %>% # 
+  content("parsed")
+```
+
+## Download all data from different pages
+```{r}
+get_all_inspections = function(url) {
+  
+  all_inspections = vector("list", length = 0)
+  
+  loop_index = 1
+  chunk_size = 50000
+  DO_NEXT = TRUE
+  
+  while (DO_NEXT) {
+    message("Getting data, page ", loop_index)
+    
+    all_inspections[[loop_index]] = 
+      GET(url,
+          query = list(`$order` = "zipcode",
+                       `$limit` = chunk_size,
+                       `$offset` = as.integer((loop_index - 1) * chunk_size)
+                       )
+          ) %>%
+      content("text") %>%
+      fromJSON() %>%
+      as_tibble()
+    
+    DO_NEXT = dim(all_inspections[[loop_index]])[1] == chunk_size
+    loop_index = loop_index + 1
+  }
+  
+  all_inspections
+  
+}
+
+url = "https://data.cityofnewyork.us/resource/43nn-pn8j.json"
+
+nyc_inspections = 
+  get_all_inspections(url) %>%
+  bind_rows() 
+```
+
+What about pokemon API
+```{r}
+poke = 
+  GET("http://pokeapi.co/api/v2/pokemon/1") %>%
+  content()
+
+poke$name
+poke[["name"]] # the same as poke$name
+poke[["abilities"]]
+```
+
+# Second class
+
+```{r}
+library(p8105.datasets)
+```
+
+## Strings
+```{r}
+string_vec = c("my", "name", "is", "jeff")
+
+str_detect(string_vec, "jeff")
+str_detect(string_vec, "m") # it is case sensetive, if "M", all output are false
+
+str_replace(string_vec, "jeff", "Jeff") # replace "jeff" with "Jeff"
+str_replace(string_vec, "e", "ADD A SENTENE")
+str_replace(string_vec, "jeff", "") # make words gone
+```
+
+```{r}
+string_vec = c(
+  "i think we all rule for participating",
+  "i think i have been caught",
+  "i think this will be quite fun actually",
+  "it will be fun, i think"
+  )
+
+str_detect(string_vec, "^i think") # Start with "i think"
+str_detect(string_vec, "i think$") # End with "i think"
+```
+
+```{r}
+string_vec = c(
+  "Y'all remember Pres. HW Bush?",
+  "I saw a green bush",
+  "BBQ and Bushwalking at Molonglo Gorge",
+  "BUSH -- LIVE IN CONCERT!!"
+  )
+
+str_detect(string_vec,"[Bb]ush") # find "bush" and "Bush"
+```
+
+```{r}
+string_vec = c(
+  '7th inning stretch',
+  '1st half soon to begin. Texas won the toss.',
+  'she is 5 feet 4 inches tall',
+  '3AM - cant sleep :('
+  )
+
+str_detect(string_vec, "[0-9][a-zA-Z]") # Find all that having numbers 0-9, and followed by lower/upper case letters
+```
+
+```{r}
+string_vec = c(
+  'Its 7:11 in the evening',
+  'want to go to 7-11?',
+  'my flight is AA711',
+  'NetBios: scanning ip 203.167.114.66'
+  )
+
+str_detect(string_vec, "7.11") # find 7 and 11, doesn't matter what is between 7 and 11, "." means free space, it can be any thing
+```
+
+```{r}
+string_vec = c(
+  'The CI is [2, 5]',
+  ':-]',
+  ':-[',
+  'I found the answer on pages [6-7]'
+  )
+
+str_detect(string_vec, "\\[")
+
+# Some characters are “special”. These include [ and ], ( and ), and .. If you want to search for these, you have to indicate they’re special using \. 
+```
+
+
+## Factor
+
+Why factors are weird
+```{r}
+vec_sex = factor(c("male", "male", "female", "female"))
+as.numeric(vec_sex) # 2 2 1 1, since previous line male is 2_nd factor, female is 1_st
+
+
+vec_sex = fct_relevel(vec_sex, "male")
+as.numeric(vec_sex) # 1 1 2 2
+```
+
+
+## NSDUH
+```{r}
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+table_marj = 
+  read_html(nsduh_url) %>% 
+  html_table() %>% 
+  first() %>%
+  slice(-1)
+
+
+data_marj = 
+  table_marj %>%
+  select(-contains("P Value")) %>%
+  pivot_longer(
+    -State, # pivot_longer the data table except "State" column
+    names_to = "age_year", 
+    values_to = "percent") %>%
+  separate(age_year, into = c("age", "year"), sep = "\\(") %>% # "sep" can be replaced with "-11", last 11 digits in data table, which represent years
+  mutate(
+    year = str_replace(year, "\\)", ""),
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)) %>%
+  filter(!(State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West")))
+```
+
+Now, we can do data frame stuff
+```{r}
+data_marj %>%
+  filter(age == "12-17") %>% 
+  mutate(State = fct_reorder(State, percent)) %>%  # reorder "State" column following percent order
+  ggplot(aes(x = State, y = percent, color = year)) + 
+    geom_point() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+## Restaurant inspection
+```{r}
+data("rest_inspec")
+
+rest_inspec %>% slice(1:100) %>%view() #Extraxt first 1,000 lines and view
+
+rest_inspec %>% 
+  janitor::tabyl(boro, grade) # see what the data look like in a data table
+```
+
+```{r}
+rest_inspec %>% 
+  group_by(boro, grade) %>% 
+  summarize(n = n()) %>% 
+  pivot_wider(names_from = grade, values_from = n)
+```
+
+For more codes:
+https://www.p8105.com/strings_and_factors.html
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
