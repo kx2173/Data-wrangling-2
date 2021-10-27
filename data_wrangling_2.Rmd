@@ -277,7 +277,7 @@ rest_inspec %>%
 For more codes:
 https://www.p8105.com/strings_and_factors.html
 
-new repo
+with new repo
 
 
 
