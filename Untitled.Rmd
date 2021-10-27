@@ -273,8 +273,6 @@ rest_inspec %>%
   summarize(n = n()) %>% 
   pivot_wider(names_from = grade, values_from = n)
 ```
-
-
 For more codes:
 https://www.p8105.com/strings_and_factors.html
 
